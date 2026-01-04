@@ -44,7 +44,22 @@ export class SessionService implements ISessionStore, OnModuleInit, OnModuleDest
   async get(sessionId: string): Promise<ISession | null> {
     if (this.storeType === 'redis' && this.redisClient) {
       const data = await this.redisClient.get(`session:${sessionId}`);
-      return data ? JSON.parse(data) : null;
+      if (!data) {
+        return null;
+      }
+      try {
+        const session = JSON.parse(data);
+        // Check if session has expired (in case TTL wasn't set or expired)
+        if (session.expiresAt && new Date(session.expiresAt) < new Date()) {
+          // Clean up expired session
+          await this.redisClient.del(`session:${sessionId}`);
+          return null;
+        }
+        return session;
+      } catch (error) {
+        console.error(`Error parsing session data for ${sessionId}:`, error);
+        return null;
+      }
     } else {
       const session = this.memoryStore.get(sessionId);
       if (session && session.expiresAt > new Date()) {

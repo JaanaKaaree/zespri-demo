@@ -56,4 +56,52 @@ export class ConfigService {
   get frontendUrl(): string {
     return this.configService.get<string>('frontend.url', 'http://localhost:3000');
   }
+
+  get nzbnApiUrl(): string {
+    return this.configService.get<string>('nzbn.apiUrl', 'https://api.business.govt.nz/sandbox');
+  }
+
+  get nzbnSubscriptionKey(): string {
+    return this.configService.get<string>('nzbn.subscriptionKey', '');
+  }
+
+  get nzbnOAuthAuthorizeUrl(): string {
+    return this.configService.get<string>(
+      'nzbn.oauth.authorizeUrl',
+      'https://api.business.govt.nz/oauth2/v2.0/authorize',
+    );
+  }
+
+  get nzbnOAuthTokenUrl(): string {
+    return this.configService.get<string>(
+      'nzbn.oauth.tokenUrl',
+      'https://api.business.govt.nz/oauth2/v2.0/token',
+    );
+  }
+
+  get nzbnOAuthClientId(): string {
+    return this.configService.get<string>('nzbn.oauth.clientId', '');
+  }
+
+  get nzbnOAuthClientSecret(): string {
+    return this.configService.get<string>('nzbn.oauth.clientSecret', '');
+  }
+
+  get nzbnOAuthRedirectUri(): string {
+    return this.configService.get<string>(
+      'nzbn.oauth.redirectUri',
+      'http://localhost:3000/nzbn/oauth/callback',
+    );
+  }
+
+  get nzbnOAuthScope(): string {
+    return this.configService.get<string>(
+      'nzbn.oauth.scope',
+      'https://api.business.govt.nz/sandbox/NZBNCO:manage offline_access',
+    );
+  }
+
+  get nzbnOAuthPolicy(): string {
+    return this.configService.get<string>('nzbn.oauth.policy', 'b2c_1a_api_consent_susi');
+  }
 }

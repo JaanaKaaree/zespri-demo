@@ -73,9 +73,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await authApi.logout();
     } catch (error) {
       console.error('Logout error:', error);
+      // Continue with logout even if API call fails
     } finally {
+      // Clear all storage
       tokenStorage.remove();
       sessionStorage.remove();
+      
+      // Clear any additional sessionStorage items (like OAuth redirects)
+      if (typeof window !== 'undefined') {
+        window.sessionStorage.removeItem('nzbn_oauth_redirect');
+      }
+      
+      // Clear auth state
       setAuthState({
         user: null,
         token: null,
@@ -83,6 +92,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isAuthenticated: false,
         isLoading: false,
       });
+      
+      // Redirect to login page
+      if (typeof window !== 'undefined') {
+        window.location.href = '/login';
+      }
     }
   };
 

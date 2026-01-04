@@ -24,4 +24,25 @@ export default () => ({
   frontend: {
     url: process.env.FRONTEND_URL || 'http://localhost:3000',
   },
+  nzbn: {
+    apiUrl: process.env.NZBN_API_URL || 'https://api.business.govt.nz/sandbox',
+    subscriptionKey: process.env.NZBN_SUBSCRIPTION_KEY || '',
+    oauth: {
+      authorizeUrl:
+        process.env.NZBN_OAUTH_AUTHORIZE_URL ||
+        'https://api.business.govt.nz/oauth2/v2.0/authorize',
+      tokenUrl:
+        process.env.NZBN_OAUTH_TOKEN_URL ||
+        'https://api.business.govt.nz/oauth2/v2.0/token',
+      clientId: process.env.NZBN_OAUTH_CLIENT_ID || '',
+      clientSecret: process.env.NZBN_OAUTH_CLIENT_SECRET || '',
+      redirectUri:
+        process.env.NZBN_OAUTH_REDIRECT_URI ||
+        'http://localhost:3001/nzbn/oauth/callback',
+      scope:
+        process.env.NZBN_OAUTH_SCOPE ||
+        'https://api.business.govt.nz/sandbox/NZBNCO:manage offline_access',
+      policy: 'b2c_1a_api_consent_susi',
+    },
+  },
 });

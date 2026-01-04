@@ -52,6 +52,14 @@ export default function DashboardPage() {
                 Create Credential
               </a>
             </li>
+            <li>
+              <a
+                href="/nzbn/organisations"
+                className="text-blue-600 hover:text-blue-800 underline"
+              >
+                Manage Organisation Parts
+              </a>
+            </li>
           </ul>
         </div>
       </div>

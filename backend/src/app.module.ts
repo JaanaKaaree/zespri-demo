@@ -7,6 +7,7 @@ import { SessionModule } from './session/session.module';
 import { IssuanceModule } from './issuance/issuance.module';
 import { UsersModule } from './users/users.module';
 import { CommonModule } from './common/common.module';
+import { OrganisationsModule } from './nzbn/organisations/organisations.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { CommonModule } from './common/common.module';
     SessionModule,
     IssuanceModule,
     UsersModule,
+    OrganisationsModule,
   ],
 })
 export class AppModule {}

@@ -31,10 +31,19 @@ apiClient.interceptors.response.use(
   (response) => response,
   (error: AxiosError) => {
     if (error.response?.status === 401) {
-      // Unauthorized - clear token and redirect to login
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('auth_token');
-        window.location.href = '/login';
+      // Check if this is an OAuth token error (should be handled by the calling code)
+      const errorData = error.response?.data as any;
+      const errorCode = errorData?.error?.error || errorData?.error;
+      
+      // Only redirect to login if it's not an OAuth token error
+      // OAuth token errors (OAUTH_TOKEN_MISSING, OAUTH_TOKEN_EXPIRED) should be handled
+      // by the component that made the request to trigger OAuth flow
+      if (errorCode !== 'OAUTH_TOKEN_MISSING' && errorCode !== 'OAUTH_TOKEN_EXPIRED') {
+        // Unauthorized - clear token and redirect to login
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('auth_token');
+          window.location.href = '/login';
+        }
       }
     }
     return Promise.reject(error);
