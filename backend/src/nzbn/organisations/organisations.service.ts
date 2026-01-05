@@ -39,7 +39,15 @@ export class OrganisationsService {
     // Add request interceptor for logging
     this.httpClient.interceptors.request.use(
       (config) => {
-        this.logger.debug(`NZBN API Request: ${config.method?.toUpperCase()} ${config.url}`);
+        const fullUrl = `${config.baseURL}${config.url}`;
+        this.logger.log(`=== NZBN API REQUEST ===`);
+        this.logger.log(`Method: ${config.method?.toUpperCase()}`);
+        this.logger.log(`URL: ${fullUrl}`);
+        this.logger.log(`Headers: ${JSON.stringify(config.headers, null, 2)}`);
+        if (config.data) {
+          this.logger.log(`Body: ${JSON.stringify(config.data, null, 2)}`);
+        }
+        this.logger.log(`========================`);
         return config;
       },
       (error) => {
@@ -137,7 +145,7 @@ export class OrganisationsService {
         `/nzbn/v5/entities/${nzbn}/organisation-parts`,
         {
           headers: {
-            Authorization: token, // Token only, no "Bearer" prefix
+            Authorization: `Bearer ${token}`,
           },
         },
       );
@@ -185,7 +193,7 @@ export class OrganisationsService {
         data,
         {
           headers: {
-            Authorization: token, // Token only, no "Bearer" prefix
+            Authorization: `Bearer ${token}`,
           },
         },
       );
@@ -197,6 +205,12 @@ export class OrganisationsService {
         `Error creating organisation part: ${error.message}`,
         error.stack,
       );
+
+      // Log full error response details for debugging
+      if (error.response) {
+        this.logger.error(`NZBN API Error Response Status: ${error.response.status}`);
+        this.logger.error(`NZBN API Error Response Data: ${JSON.stringify(error.response.data)}`);
+      }
 
       // Re-throw HttpException as-is
       if (error instanceof HttpException) {
@@ -232,7 +246,7 @@ export class OrganisationsService {
         data,
         {
           headers: {
-            Authorization: token, // Token only, no "Bearer" prefix
+            Authorization: `Bearer ${token}`,
           },
         },
       );
@@ -264,25 +278,29 @@ export class OrganisationsService {
     }
   }
 
-  async deleteOrganisationPart(
+  async getOrganisationPart(
     nzbn: string,
     opn: string,
     sessionId: string,
-  ): Promise<void> {
+  ): Promise<OrganisationPart> {
     try {
       const token = await this.getOAuthTokenFromSession(sessionId);
-      this.logger.log(`Deleting organisation part ${opn} for NZBN: ${nzbn}`);
+      this.logger.log(`Getting organisation part ${opn} for NZBN: ${nzbn}`);
 
-      await this.httpClient.delete(`/nzbn/v5/entities/${nzbn}/organisation-parts/${opn}`, {
-        headers: {
-          Authorization: token, // Token only, no "Bearer" prefix
+      const response = await this.httpClient.get<OrganisationPart>(
+        `/nzbn/v5/entities/${nzbn}/organisation-parts/${opn}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         },
-      });
+      );
 
-      this.logger.log(`Organisation part ${opn} deleted successfully for NZBN: ${nzbn}`);
+      this.logger.log(`Organisation part ${opn} retrieved successfully for NZBN: ${nzbn}`);
+      return response.data;
     } catch (error) {
       this.logger.error(
-        `Error deleting organisation part: ${error.message}`,
+        `Error getting organisation part: ${error.message}`,
         error.stack,
       );
 
@@ -297,11 +315,41 @@ export class OrganisationsService {
       throw new HttpException(
         {
           statusCode,
-          message: 'Failed to delete organisation part with NZBN API',
+          message: 'Failed to get organisation part from NZBN API',
           error: errorResponse || error.message,
         },
         statusCode,
       );
+    }
+  }
+
+  async deleteOrganisationPart(
+    nzbn: string,
+    opn: string,
+    sessionId: string,
+  ): Promise<void> {
+    // Note: The NZBN API does not support DELETE for organisation parts.
+    // Instead, we deactivate them by setting status to INACTIVE.
+    // We need to fetch the current data first to preserve all fields (especially mandatory purposes).
+    try {
+      this.logger.log(`Deactivating organisation part ${opn} for NZBN: ${nzbn}`);
+      
+      // Get current organisation part data
+      const currentPart = await this.getOrganisationPart(nzbn, opn, sessionId);
+      
+      // Update with status change while preserving all existing fields
+      await this.updateOrganisationPart(nzbn, opn, sessionId, {
+        ...currentPart,
+        organisationPartStatus: 'INACTIVE',
+      } as UpdateOrganisationPartDto);
+      
+      this.logger.log(`Organisation part ${opn} deactivated successfully for NZBN: ${nzbn}`);
+    } catch (error) {
+      this.logger.error(
+        `Error deactivating organisation part: ${error.message}`,
+        error.stack,
+      );
+      throw error;
     }
   }
 }

@@ -31,6 +31,19 @@ export class OrganisationsController {
     return this.organisationsService.getOrganisationParts(nzbn, sessionId);
   }
 
+  @Get(':nzbn/organisation-parts/:opn')
+  async getOrganisationPart(
+    @Param('nzbn') nzbn: string,
+    @Param('opn') opn: string,
+    @Request() req,
+  ) {
+    const sessionId = req.user?.sessionId || req.user?.sub;
+    if (!sessionId) {
+      throw new UnauthorizedException('Session not found');
+    }
+    return this.organisationsService.getOrganisationPart(nzbn, opn, sessionId);
+  }
+
   @Post(':nzbn/organisation-parts')
   async createOrganisationPart(
     @Param('nzbn') nzbn: string,

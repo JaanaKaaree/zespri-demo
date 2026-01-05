@@ -23,6 +23,7 @@ export default function OrganisationPartsPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingPart, setEditingPart] = useState<OrganisationPart | null>(null);
   const [error, setError] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'ACTIVE' | 'INACTIVE' | 'ALL'>('ACTIVE');
 
   // Redirect to organisations page if nzbn is missing or invalid
   useEffect(() => {
@@ -132,18 +133,51 @@ export default function OrganisationPartsPage() {
     setShowForm(true);
   };
 
-  const handleEdit = (part: OrganisationPart) => {
-    setEditingPart(part);
-    setShowForm(true);
+  const handleEdit = async (part: OrganisationPart) => {
+    if (!part.opn) {
+      setError('Cannot edit organisation part: OPN is missing');
+      return;
+    }
+    try {
+      // Fetch the full organisation part to get all fields including phone numbers
+      const fullPart = await organisationsApi.getOrganisationPart(nzbn, part.opn);
+      setEditingPart(fullPart);
+      setShowForm(true);
+    } catch (err: any) {
+      const errorCode = err.response?.data?.error?.error || err.response?.data?.error;
+      if (
+        err.response?.status === 401 &&
+        (errorCode === 'OAUTH_TOKEN_MISSING' || errorCode === 'OAUTH_TOKEN_EXPIRED')
+      ) {
+        // Get authorization URL via authenticated request, then redirect
+        try {
+          const authorizationUrl = await nzbnOAuthApi.getAuthorizationUrl();
+          window.location.href = authorizationUrl;
+          return;
+        } catch (oauthErr: any) {
+          setError('Failed to initiate OAuth flow. Please try again.');
+        }
+      }
+      setError(err.response?.data?.message || err.message || 'Failed to load organisation part');
+    }
   };
 
-  const handleDelete = async (opn: string) => {
-    if (!confirm(`Are you sure you want to delete organisation part ${opn}?`)) {
+  const handleToggleStatus = async (part: OrganisationPart) => {
+    if (!part.opn) return;
+    
+    const isActive = part.organisationPartStatus === 'ACTIVE';
+    const action = isActive ? 'deactivate' : 'activate';
+    
+    if (!confirm(`Are you sure you want to ${action} organisation part ${part.opn}?`)) {
       return;
     }
 
     try {
-      await organisationsApi.deleteOrganisationPart(nzbn, opn);
+      // Use update API to change status
+      await organisationsApi.updateOrganisationPart(nzbn, part.opn, {
+        ...part,
+        organisationPartStatus: isActive ? 'INACTIVE' : 'ACTIVE',
+      });
       await loadParts();
     } catch (err: any) {
       const errorCode = err.response?.data?.error?.error || err.response?.data?.error;
@@ -160,7 +194,7 @@ export default function OrganisationPartsPage() {
           setError('Failed to initiate OAuth flow. Please try again.');
         }
       }
-      setError(err.response?.data?.message || err.message || 'Failed to delete organisation part');
+      setError(err.response?.data?.message || err.message || `Failed to ${action} organisation part`);
     }
   };
 
@@ -252,8 +286,10 @@ export default function OrganisationPartsPage() {
           nzbn={nzbn}
           parts={parts}
           onEdit={handleEdit}
-          onDelete={handleDelete}
+          onToggleStatus={handleToggleStatus}
           onCreate={handleCreate}
+          statusFilter={statusFilter}
+          onStatusFilterChange={setStatusFilter}
         />
       )}
 

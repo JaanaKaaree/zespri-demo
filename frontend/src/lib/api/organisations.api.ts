@@ -41,6 +41,20 @@ export const organisationsApi = {
   },
 
   /**
+   * Get a single organisation part by OPN
+   * @param nzbn - The NZBN number
+   * @param opn - The Organisation Part Number
+   * Note: Backend TransformInterceptor wraps response in { data, statusCode, timestamp }
+   */
+  getOrganisationPart: async (nzbn: string, opn: string): Promise<OrganisationPart> => {
+    const response = await apiClient.get<ApiResponse<OrganisationPart>>(
+      `/nzbn/organisations/${nzbn}/organisation-parts/${opn}`,
+    );
+    // TransformInterceptor wraps the response, so we need to access response.data.data
+    return response.data.data;
+  },
+
+  /**
    * Create a new organisation part
    * @param nzbn - The NZBN number
    * @param data - Organisation part data
@@ -79,7 +93,8 @@ export const organisationsApi = {
   },
 
   /**
-   * Delete an organisation part
+   * Deactivate an organisation part (sets status to INACTIVE)
+   * Note: The NZBN API does not support DELETE for organisation parts.
    * @param nzbn - The NZBN number
    * @param opn - The Organisation Part Number
    */
