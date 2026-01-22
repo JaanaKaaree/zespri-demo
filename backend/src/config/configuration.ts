@@ -1,5 +1,12 @@
 export default () => ({
   port: parseInt(process.env.PORT, 10) || 3001,
+  database: {
+    host: process.env.DATABASE_HOST || 'localhost',
+    port: parseInt(process.env.DATABASE_PORT, 10) || 5432,
+    user: process.env.DATABASE_USER || 'credentials_app',
+    password: process.env.DATABASE_PASSWORD || 'credentials_app',
+    name: process.env.DATABASE_NAME || 'credential_issuance',
+  },
   jwt: {
     secret: process.env.JWT_SECRET || 'your-secret-key',
     expiresIn: process.env.JWT_EXPIRATION || '1d',
