@@ -8,6 +8,7 @@ import { IssuanceModule } from './issuance/issuance.module';
 import { UsersModule } from './users/users.module';
 import { CommonModule } from './common/common.module';
 import { OrganisationsModule } from './nzbn/organisations/organisations.module';
+import { CollectionCredentialModule } from './issuance/collection-credential/collection-credential.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { OrganisationsModule } from './nzbn/organisations/organisations.module';
     IssuanceModule,
     UsersModule,
     OrganisationsModule,
+    CollectionCredentialModule,
   ],
 })
 export class AppModule {}

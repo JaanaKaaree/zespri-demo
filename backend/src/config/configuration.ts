@@ -16,7 +16,15 @@ export default () => ({
   },
   matt: {
     apiUrl: process.env.MATTR_API_URL || '',
-    apiKey: process.env.MATTR_API_KEY || '',
+    clientId: process.env.MATTR_CLIENT_ID || '',
+    clientSecret: process.env.MATTR_CLIENT_SECRET || '',
+    oauthUrl: process.env.MATTR_OAUTH_URL || '',
+    tokenUrl: process.env.MATTR_TOKEN_URL || '',
+    audience: process.env.MATTR_AUDIENCE || '',
+    issuerDid: process.env.MATTR_ISSUER_DID || 'did:web:nzbn-pre.vii.au01.mattr.global',
+    issuerName: process.env.MATTR_ISSUER_NAME || 'NZBN Organization',
+    collectionCredentialTemplateId:
+      process.env.MATTR_COLLECTION_CREDENTIAL_TEMPLATE_ID || 'harvest-collection-v1',
   },
   logging: {
     level: process.env.LOG_LEVEL || 'info',
