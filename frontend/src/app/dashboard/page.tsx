@@ -35,8 +35,8 @@ export default function DashboardPage() {
             Welcome
           </h2>
           <p className="text-gray-600">
-            This is your dashboard. Navigate to the Issuance page to create
-            credentials.
+            This is your dashboard. Navigate to Manage Credentials to view and create
+            collection credentials.
           </p>
         </div>
         <div className="bg-white rounded-lg shadow-md p-6">
@@ -46,10 +46,10 @@ export default function DashboardPage() {
           <ul className="space-y-2 text-gray-600">
             <li>
               <a
-                href="/issuance"
+                href="/issuance/collection"
                 className="text-blue-600 hover:text-blue-800 underline"
               >
-                Create Credential
+                Manage Credentials
               </a>
             </li>
             <li>

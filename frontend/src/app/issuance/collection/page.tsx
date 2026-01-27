@@ -34,7 +34,7 @@ export default function CollectionCredentialPage() {
     if (isAuthenticated && !authLoading) {
       loadCredentials();
     }
-  }, [isAuthenticated, authLoading]);
+  }, [isAuthenticated, authLoading, statusFilter]);
 
   const loadCredentials = async () => {
     setIsLoading(true);
@@ -61,12 +61,13 @@ export default function CollectionCredentialPage() {
       const session = sessionStorage.get();
       const sessionId = session?.sessionId;
 
-      const response = await collectionCredentialApi.createCollectionCredential({
+      await collectionCredentialApi.createCollectionCredential({
         ...data,
         sessionId,
       });
 
-      setCredentials((prev) => [response, ...prev]);
+      // Reload credentials list to ensure we have the latest data
+      await loadCredentials();
       setShowForm(false);
       setError('');
     } catch (err: any) {
@@ -85,10 +86,9 @@ export default function CollectionCredentialPage() {
 
   const handleIssueCredential = async (credential: CollectionCredential) => {
     try {
-      const updated = await collectionCredentialApi.issueCollectionCredential(credential.id);
-      setCredentials((prev) =>
-        prev.map((cred) => (cred.id === credential.id ? updated : cred)),
-      );
+      await collectionCredentialApi.issueCollectionCredential(credential.id);
+      // Reload credentials list to ensure we have the latest data
+      await loadCredentials();
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to issue credential.');
       console.error('Error issuing credential:', err);
@@ -142,10 +142,6 @@ export default function CollectionCredentialPage() {
           statusFilter={statusFilter}
           onStatusFilterChange={(filter) => {
             setStatusFilter(filter);
-            // Reload with new filter
-            setTimeout(() => {
-              loadCredentials();
-            }, 0);
           }}
         />
       )}
