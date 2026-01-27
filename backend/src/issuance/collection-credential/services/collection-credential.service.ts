@@ -17,12 +17,7 @@ import {
   CollectionCredentialFilters,
 } from '../interfaces/collection-credential.interface';
 import { CreateCredentialDto } from '../../dto/create-credential.dto';
-
-/**
- * In-memory storage for demo purposes
- * In production, this should be replaced with a database
- */
-const credentialsStorage = new Map<string, CollectionCredential>();
+import { CollectionCredentialRepository } from '../repositories/collection-credential.repository';
 
 @Injectable()
 export class CollectionCredentialService {
@@ -34,6 +29,7 @@ export class CollectionCredentialService {
     private readonly issuanceService: IssuanceService,
     private readonly collectionIdGenerator: CollectionIdGeneratorService,
     private readonly organisationsService: OrganisationsService,
+    private readonly repository: CollectionCredentialRepository,
   ) {
     this.MATTR_TEMPLATE_ID = this.configService.get<string>(
       'matt.collectionCredentialTemplateId',
@@ -163,7 +159,8 @@ export class CollectionCredentialService {
         updatedAt: new Date(),
       };
 
-      credentialsStorage.set(credential.id, credential);
+      // Store credential in database
+      await this.repository.create(credential);
 
       this.logger.log(`Collection credential created successfully: ${credential.id}`);
 
@@ -194,7 +191,7 @@ export class CollectionCredentialService {
    * Get a collection credential by ID
    */
   async getCollectionCredential(id: string): Promise<CollectionCredentialResponseDto> {
-    const credential = credentialsStorage.get(id);
+    const credential = await this.repository.findById(id);
     if (!credential) {
       throw new NotFoundException(`Collection credential with ID ${id} not found`);
     }
@@ -202,14 +199,15 @@ export class CollectionCredentialService {
     // Get latest status from MATTR
     try {
       const status = await this.issuanceService.getCredentialStatus(id);
-      credential.status = status.status as 'pending' | 'issued' | 'failed';
-      credential.credentialId = status.credentialId;
-      credentialsStorage.set(id, credential);
+      const updatedCredential = await this.repository.update(id, {
+        status: status.status as 'pending' | 'issued' | 'failed',
+        credentialId: status.credentialId,
+      });
+      return updatedCredential;
     } catch (error) {
       this.logger.warn(`Could not fetch status from MATTR for credential ${id}: ${error.message}`);
+      return credential;
     }
-
-    return credential;
   }
 
   /**
@@ -219,7 +217,7 @@ export class CollectionCredentialService {
     id: string,
     dto: UpdateCollectionCredentialDto,
   ): Promise<CollectionCredentialResponseDto> {
-    const credential = credentialsStorage.get(id);
+    const credential = await this.repository.findById(id);
     if (!credential) {
       throw new NotFoundException(`Collection credential with ID ${id} not found`);
     }
@@ -239,22 +237,15 @@ export class CollectionCredentialService {
       }
     }
 
-    // Update fields
-    if (dto.harvestEndDatetime !== undefined) {
-      credential.harvestEndDatetime = dto.harvestEndDatetime;
-    }
-    if (dto.recipientDid !== undefined) {
-      credential.recipientDid = dto.recipientDid;
-    }
-    if (dto.recipientEmail !== undefined) {
-      credential.recipientEmail = dto.recipientEmail;
-    }
-    credential.updatedAt = new Date();
-
-    credentialsStorage.set(id, credential);
+    // Update fields in database
+    const updatedCredential = await this.repository.update(id, {
+      harvestEndDatetime: dto.harvestEndDatetime,
+      recipientDid: dto.recipientDid,
+      recipientEmail: dto.recipientEmail,
+    });
 
     this.logger.log(`Collection credential updated: ${id}`);
-    return credential;
+    return updatedCredential;
   }
 
   /**
@@ -263,47 +254,15 @@ export class CollectionCredentialService {
   async listCollectionCredentials(
     filters?: CollectionCredentialFilters,
   ): Promise<CollectionCredentialResponseDto[]> {
-    let credentials = Array.from(credentialsStorage.values());
-
-    // Apply filters
-    if (filters) {
-      if (filters.nzbn) {
-        credentials = credentials.filter((c) => c.nzbn === filters.nzbn);
-      }
-      if (filters.orchardId) {
-        credentials = credentials.filter((c) => c.orchardId === filters.orchardId);
-      }
-      if (filters.pickerId) {
-        credentials = credentials.filter((c) => c.pickerId === filters.pickerId);
-      }
-      if (filters.status) {
-        credentials = credentials.filter((c) => c.status === filters.status);
-      }
-      if (filters.startDate) {
-        const startDate = new Date(filters.startDate);
-        credentials = credentials.filter(
-          (c) => new Date(c.harvestStartDatetime) >= startDate,
-        );
-      }
-      if (filters.endDate) {
-        const endDate = new Date(filters.endDate);
-        credentials = credentials.filter(
-          (c) => new Date(c.harvestStartDatetime) <= endDate,
-        );
-      }
-    }
-
-    // Sort by creation date (newest first)
-    credentials.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-
-    return credentials;
+    // Repository handles filtering and sorting
+    return await this.repository.findMany(filters);
   }
 
   /**
    * Issue a collection credential via MATTR
    */
   async issueCollectionCredential(id: string): Promise<CollectionCredentialResponseDto> {
-    const credential = credentialsStorage.get(id);
+    const credential = await this.repository.findById(id);
     if (!credential) {
       throw new NotFoundException(`Collection credential with ID ${id} not found`);
     }
@@ -320,15 +279,14 @@ export class CollectionCredentialService {
 
     try {
       const mattrResponse = await this.issuanceService.issueCredential(credential.credentialId);
-      credential.status = (mattrResponse.status as 'pending' | 'issued' | 'failed') || 'pending';
-      credential.credentialId = mattrResponse.credentialId;
-      credential.updatedAt = new Date();
-
-      credentialsStorage.set(id, credential);
+      const updatedCredential = await this.repository.update(id, {
+        status: (mattrResponse.status as 'pending' | 'issued' | 'failed') || 'pending',
+        credentialId: mattrResponse.credentialId,
+      });
 
       this.logger.log(`Collection credential issued: ${id}`);
       return {
-        ...credential,
+        ...updatedCredential,
         mattrResponse,
       };
     } catch (error) {
