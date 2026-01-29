@@ -7,70 +7,70 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { IssuanceService } from '../../issuance.service';
-import { CollectionIdGeneratorService } from './collection-id-generator.service';
+import { DeliveryIdGeneratorService } from './delivery-id-generator.service';
 import { OrganisationsService } from '../../../nzbn/organisations/organisations.service';
-import { CreateCollectionCredentialDto } from '../dto/create-collection-credential.dto';
-import { UpdateCollectionCredentialDto } from '../dto/update-collection-credential.dto';
-import { CollectionCredentialResponseDto } from '../dto/collection-credential-response.dto';
+import { CreateDeliveryCredentialDto } from '../dto/create-delivery-credential.dto';
+import { UpdateDeliveryCredentialDto } from '../dto/update-delivery-credential.dto';
+import { DeliveryCredentialResponseDto } from '../dto/delivery-credential-response.dto';
 import {
-  CollectionCredential,
-  CollectionCredentialFilters,
-} from '../interfaces/collection-credential.interface';
+  DeliveryCredential,
+  DeliveryCredentialFilters,
+} from '../interfaces/delivery-credential.interface';
 import { CreateCredentialDto } from '../../dto/create-credential.dto';
-import { CollectionCredentialRepository } from '../repositories/collection-credential.repository';
+import { DeliveryCredentialRepository } from '../repositories/delivery-credential.repository';
 
 @Injectable()
-export class CollectionCredentialService {
-  private readonly logger = new Logger(CollectionCredentialService.name);
+export class DeliveryCredentialService {
+  private readonly logger = new Logger(DeliveryCredentialService.name);
   private readonly MATTR_TEMPLATE_ID: string;
 
   constructor(
     private readonly configService: ConfigService,
     private readonly issuanceService: IssuanceService,
-    private readonly collectionIdGenerator: CollectionIdGeneratorService,
+    private readonly deliveryIdGenerator: DeliveryIdGeneratorService,
     private readonly organisationsService: OrganisationsService,
-    private readonly repository: CollectionCredentialRepository,
+    private readonly repository: DeliveryCredentialRepository,
   ) {
     this.MATTR_TEMPLATE_ID = this.configService.get<string>(
-      'matt.collectionCredentialTemplateId',
-      'harvest-collection-v1',
+      'matt.deliveryCredentialTemplateId',
+      'delivery-v1',
     );
     this.logger.log(`Using MATTR template ID: ${this.MATTR_TEMPLATE_ID}`);
   }
 
   /**
-   * Create a new collection credential
+   * Create a new delivery credential
    */
-  async createCollectionCredential(
-    dto: CreateCollectionCredentialDto,
-  ): Promise<CollectionCredentialResponseDto> {
+  async createDeliveryCredential(
+    dto: CreateDeliveryCredentialDto,
+  ): Promise<DeliveryCredentialResponseDto> {
     try {
-      this.logger.log(`Creating collection credential for bin: ${dto.binIdentifier}`);
+      this.logger.log(`Creating delivery credential from ${dto.originAddress} to ${dto.destinationAddress}`);
 
-      // Generate Collection ID if not provided
-      const collectionId =
-        dto.collectionId || await this.collectionIdGenerator.generateCollectionId();
+      // Generate Delivery ID if not provided
+      const deliveryId =
+        dto.deliveryId || await this.deliveryIdGenerator.generateDeliveryId();
 
-      // Validate Collection ID format if provided
-      if (dto.collectionId && !this.collectionIdGenerator.validateCollectionId(dto.collectionId)) {
+      // Validate Delivery ID format if provided
+      if (dto.deliveryId && !this.deliveryIdGenerator.validateDeliveryId(dto.deliveryId)) {
         throw new HttpException(
           {
             statusCode: HttpStatus.BAD_REQUEST,
-            message: 'Invalid Collection ID format. Expected format: COL-YYYYMMDD-XXXXXX',
+            message: 'Invalid Delivery ID format. Expected format: DEL-YYYYMMDD-XXXXXX',
           },
           HttpStatus.BAD_REQUEST,
         );
       }
 
-      // Validate harvest end datetime is after start datetime if provided
-      if (dto.harvestEndDatetime) {
-        const startDate = new Date(dto.harvestStartDatetime);
-        const endDate = new Date(dto.harvestEndDatetime);
+      // Validate delivery end datetime is after start datetime if provided
+      if (dto.deliveryEndDatetime) {
+        const startDate = new Date(dto.deliveryStartDatetime);
+        const endDate = new Date(dto.deliveryEndDatetime);
         if (endDate <= startDate) {
           throw new HttpException(
             {
               statusCode: HttpStatus.BAD_REQUEST,
-              message: 'Harvest end datetime must be after harvest start datetime',
+              message: 'Delivery end datetime must be after delivery start datetime',
             },
             HttpStatus.BAD_REQUEST,
           );
@@ -84,9 +84,6 @@ export class CollectionCredentialService {
             dto.nzbn,
             dto.sessionId,
           );
-          // Check if orchard ID matches any organization part
-          // For now, we'll just validate the NZBN exists
-          // In a real scenario, you might want to validate the orchardId against custom-data
           this.logger.debug(`Validated NZBN ${dto.nzbn} has ${orgParts.length} organization parts`);
         } catch (error) {
           // If validation fails, log but don't block (OAuth might not be set up)
@@ -98,15 +95,16 @@ export class CollectionCredentialService {
 
       // Prepare credential data for MATTR
       const credentialData = {
-        binIdentifier: dto.binIdentifier,
-        rowIdentifier: dto.rowIdentifier,
-        harvestStartDatetime: dto.harvestStartDatetime,
-        harvestEndDatetime: dto.harvestEndDatetime,
-        pickerId: dto.pickerId,
-        pickerName: dto.pickerName,
+        deliveryId: deliveryId,
+        originAddress: dto.originAddress,
+        destinationAddress: dto.destinationAddress,
+        deliveryStartDatetime: dto.deliveryStartDatetime,
+        deliveryEndDatetime: dto.deliveryEndDatetime,
+        driverId: dto.driverId,
+        driverName: dto.driverName,
+        vehicleId: dto.vehicleId,
+        collectionId: dto.collectionId,
         nzbn: dto.nzbn,
-        orchardId: dto.orchardId,
-        collectionId: collectionId,
       };
 
       // Create credential via MATTR
@@ -138,17 +136,18 @@ export class CollectionCredentialService {
       }
 
       // Store credential locally
-      const credential: CollectionCredential = {
+      const credential: DeliveryCredential = {
         id: mattrResponse.id,
-        collectionId,
-        binIdentifier: dto.binIdentifier,
-        rowIdentifier: dto.rowIdentifier,
-        harvestStartDatetime: dto.harvestStartDatetime,
-        harvestEndDatetime: dto.harvestEndDatetime,
-        pickerId: dto.pickerId,
-        pickerName: dto.pickerName,
+        deliveryId,
+        originAddress: dto.originAddress,
+        destinationAddress: dto.destinationAddress,
+        deliveryStartDatetime: dto.deliveryStartDatetime,
+        deliveryEndDatetime: dto.deliveryEndDatetime,
+        driverId: dto.driverId,
+        driverName: dto.driverName,
+        vehicleId: dto.vehicleId,
+        collectionId: dto.collectionId,
         nzbn: dto.nzbn,
-        orchardId: dto.orchardId,
         recipientDid: dto.recipientDid,
         recipientEmail: dto.recipientEmail,
         status: (mattrResponse.status as 'pending' | 'issued' | 'failed') || 'pending',
@@ -162,7 +161,7 @@ export class CollectionCredentialService {
       // Store credential in database
       await this.repository.create(credential);
 
-      this.logger.log(`Collection credential created successfully: ${credential.id}`);
+      this.logger.log(`Delivery credential created successfully: ${credential.id}`);
 
       return {
         ...credential,
@@ -170,7 +169,7 @@ export class CollectionCredentialService {
       };
     } catch (error) {
       this.logger.error(
-        `Error creating collection credential: ${error.message}`,
+        `Error creating delivery credential: ${error.message}`,
         error.stack,
       );
       if (error instanceof HttpException) {
@@ -179,7 +178,7 @@ export class CollectionCredentialService {
       throw new HttpException(
         {
           statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
-          message: 'Failed to create collection credential',
+          message: 'Failed to create delivery credential',
           error: error.message,
         },
         HttpStatus.INTERNAL_SERVER_ERROR,
@@ -188,12 +187,12 @@ export class CollectionCredentialService {
   }
 
   /**
-   * Get a collection credential by ID
+   * Get a delivery credential by ID
    */
-  async getCollectionCredential(id: string): Promise<CollectionCredentialResponseDto> {
+  async getDeliveryCredential(id: string): Promise<DeliveryCredentialResponseDto> {
     const credential = await this.repository.findById(id);
     if (!credential) {
-      throw new NotFoundException(`Collection credential with ID ${id} not found`);
+      throw new NotFoundException(`Delivery credential with ID ${id} not found`);
     }
 
     // Get latest status from MATTR
@@ -211,26 +210,26 @@ export class CollectionCredentialService {
   }
 
   /**
-   * Update a collection credential
+   * Update a delivery credential
    */
-  async updateCollectionCredential(
+  async updateDeliveryCredential(
     id: string,
-    dto: UpdateCollectionCredentialDto,
-  ): Promise<CollectionCredentialResponseDto> {
+    dto: UpdateDeliveryCredentialDto,
+  ): Promise<DeliveryCredentialResponseDto> {
     const credential = await this.repository.findById(id);
     if (!credential) {
-      throw new NotFoundException(`Collection credential with ID ${id} not found`);
+      throw new NotFoundException(`Delivery credential with ID ${id} not found`);
     }
 
-    // Validate harvest end datetime if provided
-    if (dto.harvestEndDatetime) {
-      const startDate = new Date(credential.harvestStartDatetime);
-      const endDate = new Date(dto.harvestEndDatetime);
+    // Validate delivery end datetime if provided
+    if (dto.deliveryEndDatetime) {
+      const startDate = new Date(credential.deliveryStartDatetime);
+      const endDate = new Date(dto.deliveryEndDatetime);
       if (endDate <= startDate) {
         throw new HttpException(
           {
             statusCode: HttpStatus.BAD_REQUEST,
-            message: 'Harvest end datetime must be after harvest start datetime',
+            message: 'Delivery end datetime must be after delivery start datetime',
           },
           HttpStatus.BAD_REQUEST,
         );
@@ -239,32 +238,32 @@ export class CollectionCredentialService {
 
     // Update fields in database
     const updatedCredential = await this.repository.update(id, {
-      harvestEndDatetime: dto.harvestEndDatetime,
+      deliveryEndDatetime: dto.deliveryEndDatetime,
       recipientDid: dto.recipientDid,
       recipientEmail: dto.recipientEmail,
     });
 
-    this.logger.log(`Collection credential updated: ${id}`);
+    this.logger.log(`Delivery credential updated: ${id}`);
     return updatedCredential;
   }
 
   /**
-   * List collection credentials with optional filters
+   * List delivery credentials with optional filters
    */
-  async listCollectionCredentials(
-    filters?: CollectionCredentialFilters,
-  ): Promise<CollectionCredentialResponseDto[]> {
+  async listDeliveryCredentials(
+    filters?: DeliveryCredentialFilters,
+  ): Promise<DeliveryCredentialResponseDto[]> {
     // Repository handles filtering and sorting
     return await this.repository.findMany(filters);
   }
 
   /**
-   * Issue a collection credential via MATTR
+   * Issue a delivery credential via MATTR
    */
-  async issueCollectionCredential(id: string): Promise<CollectionCredentialResponseDto> {
+  async issueDeliveryCredential(id: string): Promise<DeliveryCredentialResponseDto> {
     const credential = await this.repository.findById(id);
     if (!credential) {
-      throw new NotFoundException(`Collection credential with ID ${id} not found`);
+      throw new NotFoundException(`Delivery credential with ID ${id} not found`);
     }
 
     if (!credential.credentialId) {
@@ -283,14 +282,14 @@ export class CollectionCredentialService {
         status: 'issued',
       });
 
-      this.logger.log(`Collection credential status updated to issued: ${id}`);
+      this.logger.log(`Delivery credential status updated to issued: ${id}`);
       return updatedCredential;
     } catch (error) {
-      this.logger.error(`Error issuing collection credential: ${error.message}`, error.stack);
+      this.logger.error(`Error issuing delivery credential: ${error.message}`, error.stack);
       throw new HttpException(
         {
           statusCode: HttpStatus.BAD_GATEWAY,
-          message: 'Failed to issue collection credential with MATTR platform',
+          message: 'Failed to issue delivery credential with MATTR platform',
           error: error.message,
         },
         HttpStatus.BAD_GATEWAY,

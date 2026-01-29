@@ -1,27 +1,27 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { CollectionCredentialRepository } from '../repositories/collection-credential.repository';
+import { DeliveryCredentialRepository } from '../repositories/delivery-credential.repository';
 
 /**
- * Service to generate Collection IDs in format: COL-YYYYMMDD-XXXXXX
+ * Service to generate Delivery IDs in format: DEL-YYYYMMDD-XXXXXX
  * Ensures uniqueness by checking existing IDs in the database
  */
 @Injectable()
-export class CollectionIdGeneratorService {
-  private readonly logger = new Logger(CollectionIdGeneratorService.name);
+export class DeliveryIdGeneratorService {
+  private readonly logger = new Logger(DeliveryIdGeneratorService.name);
 
   constructor(
-    private readonly repository: CollectionCredentialRepository,
+    private readonly repository: DeliveryCredentialRepository,
   ) {}
 
   /**
-   * Generate a new Collection ID
-   * Format: COL-YYYYMMDD-XXXXXX
-   * @returns Collection ID string
+   * Generate a new Delivery ID
+   * Format: DEL-YYYYMMDD-XXXXXX
+   * @returns Delivery ID string
    */
-  async generateCollectionId(): Promise<string> {
+  async generateDeliveryId(): Promise<string> {
     const today = new Date();
     const dateStr = this.formatDate(today);
-    const datePrefix = `COL-${dateStr}-`;
+    const datePrefix = `DEL-${dateStr}-`;
 
     // Query database for existing IDs with this date prefix
     const maxSequence = await this.getMaxSequenceForDate(datePrefix);
@@ -32,23 +32,23 @@ export class CollectionIdGeneratorService {
     // Format sequence as 6-digit number (000001-999999)
     const sequenceStr = nextSequence.toString().padStart(6, '0');
 
-    const collectionId = `${datePrefix}${sequenceStr}`;
-    this.logger.debug(`Generated Collection ID: ${collectionId}`);
+    const deliveryId = `${datePrefix}${sequenceStr}`;
+    this.logger.debug(`Generated Delivery ID: ${deliveryId}`);
     
-    return collectionId;
+    return deliveryId;
   }
 
   /**
    * Get the maximum sequence number for a given date prefix
-   * @param datePrefix Format: COL-YYYYMMDD-
+   * @param datePrefix Format: DEL-YYYYMMDD-
    * @returns Maximum sequence number found, or 0 if none found
    */
   private async getMaxSequenceForDate(datePrefix: string): Promise<number> {
     try {
-      // Get all collection IDs that start with the date prefix
+      // Get all delivery IDs that start with the date prefix
       const credentials = await this.repository.findMany();
       const matchingIds = credentials
-        .map(c => c.collectionId)
+        .map(c => c.deliveryId)
         .filter(id => id && id.startsWith(datePrefix));
 
       if (matchingIds.length === 0) {
@@ -86,12 +86,12 @@ export class CollectionIdGeneratorService {
   }
 
   /**
-   * Validate Collection ID format
-   * @param collectionId Collection ID to validate
+   * Validate Delivery ID format
+   * @param deliveryId Delivery ID to validate
    * @returns true if valid format
    */
-  validateCollectionId(collectionId: string): boolean {
-    const pattern = /^COL-\d{8}-\d{6}$/;
-    return pattern.test(collectionId);
+  validateDeliveryId(deliveryId: string): boolean {
+    const pattern = /^DEL-\d{8}-\d{6}$/;
+    return pattern.test(deliveryId);
   }
 }

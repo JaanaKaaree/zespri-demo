@@ -18,7 +18,8 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "migrate:up": "ts-node -r dotenv/config scripts/migrate.ts",
     "migrate:grant": "ts-node -r dotenv/config scripts/grant-permissions.ts",
-    "migrate:create": "echo 'Create migration files in migrations/ directory'"
+    "migrate:create": "echo 'Create migration files in migrations/ directory'",
+    "migrate:cleanup": "ts-node -r dotenv/config scripts/run-cleanup.ts"
   },
   "keywords": [],
   "author": "",

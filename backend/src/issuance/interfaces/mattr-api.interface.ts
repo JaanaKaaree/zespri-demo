@@ -24,7 +24,7 @@ export interface MATTRQRCodeResponse {
 
 export interface MATTRCredentialStatus {
   id: string;
-  status: 'pending' | 'issued' | 'failed';
+  status: 'pending' | 'issued' | 'failed' | 'revoked';
   credentialId?: string;
   error?: string;
 }

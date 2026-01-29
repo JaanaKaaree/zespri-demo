@@ -1,6 +1,6 @@
 import { IsString, IsNotEmpty, IsOptional } from 'class-validator';
 
-export class VerifyCredentialDto {
+export class RevokeCredentialDto {
   @IsString()
   @IsNotEmpty()
   payload: string;
@@ -15,5 +15,5 @@ export class VerifyCredentialDto {
 
   @IsOptional()
   @IsString()
-  credential_type?: string; // Optional - we detect this from decoded credential data, but allow it for compatibility
+  credential_type?: string; // 'DeliveryCredential' or 'OrgPartHarvestCredential'
 }

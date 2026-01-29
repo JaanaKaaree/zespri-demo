@@ -32,6 +32,8 @@ export default () => ({
     issuerName: process.env.MATTR_ISSUER_NAME || 'NZBN Organization',
     collectionCredentialTemplateId:
       process.env.MATTR_COLLECTION_CREDENTIAL_TEMPLATE_ID || 'harvest-collection-v1',
+    deliveryCredentialTemplateId:
+      process.env.MATTR_DELIVERY_CREDENTIAL_TEMPLATE_ID || 'delivery-v1',
   },
   logging: {
     level: process.env.LOG_LEVEL || 'info',

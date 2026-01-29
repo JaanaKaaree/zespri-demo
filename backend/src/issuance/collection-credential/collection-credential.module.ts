@@ -14,6 +14,6 @@ import { OrganisationsModule } from '../../nzbn/organisations/organisations.modu
     CollectionIdGeneratorService,
     CollectionCredentialRepository,
   ],
-  exports: [CollectionCredentialService],
+  exports: [CollectionCredentialService, CollectionCredentialRepository],
 })
 export class CollectionCredentialModule {}
