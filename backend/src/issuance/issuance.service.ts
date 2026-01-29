@@ -52,6 +52,9 @@ export class IssuanceService {
           
           // Log full request details
           const fullUrl = `${config.baseURL}${config.url}`;
+          const isBinaryRequest = config.responseType === 'arraybuffer' || 
+                                  config.responseType === 'blob';
+          
           this.logger.log('═══════════════════════════════════════════════════════════');
           this.logger.log('📤 MATTR API REQUEST');
           this.logger.log('═══════════════════════════════════════════════════════════');
@@ -59,7 +62,29 @@ export class IssuanceService {
           this.logger.log(`URL: ${fullUrl}`);
           this.logger.log(`Headers: ${JSON.stringify(config.headers, null, 2)}`);
           if (config.data) {
-            this.logger.log(`Body: ${JSON.stringify(config.data, null, 2)}`);
+            // Skip logging binary request bodies
+            if (isBinaryRequest || config.data instanceof ArrayBuffer || config.data instanceof Blob) {
+              const dataSize = config.data instanceof ArrayBuffer 
+                ? `${config.data.byteLength} bytes` 
+                : typeof config.data === 'string' && config.data.length > 1000
+                  ? `${config.data.length} chars (truncated)`
+                  : typeof config.data === 'string'
+                    ? `${config.data.length} chars`
+                    : 'unknown';
+              this.logger.log(`Body: [Binary or large data - ${dataSize}]`);
+            } else {
+              try {
+                // Truncate very long payloads (like encoded credentials)
+                const bodyStr = JSON.stringify(config.data, null, 2);
+                if (bodyStr.length > 2000) {
+                  this.logger.log(`Body: ${bodyStr.substring(0, 2000)}... [truncated - ${bodyStr.length} chars total]`);
+                } else {
+                  this.logger.log(`Body: ${bodyStr}`);
+                }
+              } catch (error) {
+                this.logger.log(`Body: [Unable to stringify request body]`);
+              }
+            }
           }
           if (config.params) {
             this.logger.log(`Query Params: ${JSON.stringify(config.params, null, 2)}`);
@@ -82,13 +107,32 @@ export class IssuanceService {
       (response) => {
         // Log full response details
         const fullUrl = `${response.config.baseURL}${response.config.url}`;
+        const isBinaryResponse = response.config.responseType === 'arraybuffer' || 
+                                 response.config.responseType === 'blob' ||
+                                 response.headers['content-type']?.includes('image/');
+        
         this.logger.log('═══════════════════════════════════════════════════════════');
         this.logger.log('📥 MATTR API RESPONSE (SUCCESS)');
         this.logger.log('═══════════════════════════════════════════════════════════');
         this.logger.log(`URL: ${fullUrl}`);
         this.logger.log(`Status: ${response.status} ${response.statusText}`);
         this.logger.log(`Headers: ${JSON.stringify(response.headers, null, 2)}`);
-        this.logger.log(`Data: ${JSON.stringify(response.data, null, 2)}`);
+        
+        // Skip logging binary data (QR codes, images, etc.)
+        if (isBinaryResponse) {
+          const dataSize = response.data instanceof ArrayBuffer 
+            ? `${response.data.byteLength} bytes` 
+            : typeof response.data === 'string' 
+              ? `${response.data.length} chars` 
+              : 'unknown';
+          this.logger.log(`Data: [Binary response - ${dataSize}]`);
+        } else {
+          try {
+            this.logger.log(`Data: ${JSON.stringify(response.data, null, 2)}`);
+          } catch (error) {
+            this.logger.log(`Data: [Unable to stringify response data]`);
+          }
+        }
         this.logger.log('═══════════════════════════════════════════════════════════');
         return response;
       },
@@ -122,6 +166,12 @@ export class IssuanceService {
   async createCredential(
     createCredentialDto: CreateCredentialDto,
   ): Promise<MATTRCredentialResponse> {
+    this.logger.log('═══════════════════════════════════════════════════════════');
+    this.logger.log('🔵 MATTR API CALL: createCredential');
+    this.logger.log('═══════════════════════════════════════════════════════════');
+    this.logger.log(`Template ID: ${createCredentialDto.templateId}`);
+    this.logger.log(`Credential Data Keys: ${Object.keys(createCredentialDto.credentialData || {}).join(', ')}`);
+    
     // Prepare MATTR API request payload according to MATTR CWT API
     // The API expects { payload: { iss: "did:web:...", ...claims } }
     // See: https://learn.mattr.global/docs/api-reference/platform/cwt-credentials-issuance/sign-compact-credential
@@ -135,16 +185,21 @@ export class IssuanceService {
     // Add subject (sub) if provided (DID or email)
     if (createCredentialDto.recipientDid) {
       payloadContent.sub = createCredentialDto.recipientDid;
+      this.logger.log(`Recipient DID: ${createCredentialDto.recipientDid}`);
     } else if (createCredentialDto.recipientEmail) {
       payloadContent.sub = createCredentialDto.recipientEmail;
+      this.logger.log(`Recipient Email: ${createCredentialDto.recipientEmail}`);
     }
 
     const requestPayload = {
       payload: payloadContent,
+      revocable: true,
+      isRevoked: false,
     };
 
     // Validate API URL is configured
     if (!this.apiUrl) {
+      this.logger.error('❌ MATTR_API_URL is not configured');
       throw new HttpException(
         {
           statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
@@ -205,6 +260,9 @@ export class IssuanceService {
       };
 
       this.logger.log(`✅ Credential created successfully: ${credentialResponse.id}`);
+      this.logger.log('═══════════════════════════════════════════════════════════');
+      this.logger.log('✅ MATTR API CALL COMPLETED: createCredential');
+      this.logger.log('═══════════════════════════════════════════════════════════');
       return credentialResponse;
       } catch (error) {
         this.logger.error(`❌ Error creating credential: ${error.message}`);
@@ -287,67 +345,31 @@ export class IssuanceService {
     }
   }
 
-  async issueCredential(credentialId: string): Promise<MATTRCredentialResponse> {
-    try {
-      this.logger.log(`Issuing credential: ${credentialId}`);
-
-      this.logger.log('📤 MATTR Credential Issue Request:');
-      this.logger.log(`   URL: ${this.apiUrl}/v1/credentials/${credentialId}/issue`);
-      this.logger.log(`   Method: POST`);
-
-      // Make actual API call to MATTR
-      this.logger.log('🚀 Making HTTP request to MATTR API...');
-      const response = await this.httpClient.post<MATTRCredentialResponse>(
-        `/v1/credentials/${credentialId}/issue`,
-        {},
-      );
-      this.logger.log('✅ HTTP request completed');
-
-      this.logger.log('📥 MATTR Credential Issue Response:');
-      this.logger.log(`   Status: ${response.status}`);
-      this.logger.log(`   Data: ${JSON.stringify(response.data, null, 2)}`);
-
-      const credentialResponse: MATTRCredentialResponse = {
-        id: response.data.id || credentialId,
-        status: response.data.status || 'issued',
-        credentialId: response.data.credentialId || credentialId,
-        issuanceUrl: response.data.issuanceUrl,
-        error: response.data.error,
-      };
-
-      this.logger.log(`✅ Credential issued successfully: ${credentialId}`);
-      return credentialResponse;
-    } catch (error) {
-      this.logger.error(`❌ Error issuing credential: ${error.message}`);
-      if (error.response) {
-        this.logger.error(`   Status: ${error.response.status}`);
-        this.logger.error(`   Data: ${JSON.stringify(error.response.data, null, 2)}`);
-      }
-      this.logger.error(error.stack);
-
-      throw new HttpException(
-        {
-          statusCode: HttpStatus.BAD_GATEWAY,
-          message: 'Failed to issue credential with MATTR platform',
-          error: error.response?.data || error.message,
-        },
-        HttpStatus.BAD_GATEWAY,
-      );
-    }
-  }
-
+  /**
+   * Get credential status for a compact credential
+   * Uses the MATTR /v2/credentials/compact/{id}/revocation-status endpoint (GET)
+   * For compact credentials, they are issued immediately when signed, so we check revocation status
+   * See: https://learn.mattr.global/docs/api-reference/platform/cwt-credentials-issuance/get-revocation-status-compact-credential
+   * @param credentialId The MATTR credential ID
+   */
   async getCredentialStatus(credentialId: string): Promise<MATTRCredentialStatus> {
+    this.logger.log('═══════════════════════════════════════════════════════════');
+    this.logger.log('🔵 MATTR API CALL: getCredentialStatus');
+    this.logger.log('═══════════════════════════════════════════════════════════');
+    this.logger.log(`Credential ID: ${credentialId}`);
+    
     try {
-      this.logger.log(`Getting credential status: ${credentialId}`);
+      this.logger.log(`Getting credential revocation status: ${credentialId}`);
 
+      const fullUrl = `${this.apiUrl}/v2/credentials/compact/${credentialId}/revocation-status`;
       this.logger.log('📤 MATTR Credential Status Request:');
-      this.logger.log(`   URL: ${this.apiUrl}/v1/credentials/${credentialId}`);
+      this.logger.log(`   Full URL: ${fullUrl}`);
       this.logger.log(`   Method: GET`);
 
-      // Make actual API call to MATTR
+      // Make actual API call to MATTR v2 endpoint
       this.logger.log('🚀 Making HTTP request to MATTR API...');
-      const response = await this.httpClient.get<MATTRCredentialStatus>(
-        `/v1/credentials/${credentialId}`,
+      const response = await this.httpClient.get<{ isRevoked: boolean }>(
+        `/v2/credentials/compact/${credentialId}/revocation-status`,
       );
       this.logger.log('✅ HTTP request completed');
 
@@ -355,13 +377,20 @@ export class IssuanceService {
       this.logger.log(`   Status: ${response.status}`);
       this.logger.log(`   Data: ${JSON.stringify(response.data, null, 2)}`);
 
+      // Compact credentials are issued immediately when signed
+      // Status is based on revocation status
+      const isRevoked = response.data?.isRevoked || false;
       const statusResponse: MATTRCredentialStatus = {
-        id: response.data.id || credentialId,
-        status: response.data.status || 'pending',
-        credentialId: response.data.credentialId || credentialId,
-        error: response.data.error,
+        id: credentialId,
+        status: isRevoked ? 'revoked' : 'issued',
+        credentialId: credentialId,
+        error: undefined,
       };
 
+      this.logger.log(`✅ Credential status retrieved: ${statusResponse.status} (revoked: ${isRevoked})`);
+      this.logger.log('═══════════════════════════════════════════════════════════');
+      this.logger.log('✅ MATTR API CALL COMPLETED: getCredentialStatus');
+      this.logger.log('═══════════════════════════════════════════════════════════');
       return statusResponse;
     } catch (error) {
       this.logger.error(`❌ Error getting credential status: ${error.message}`);
@@ -389,6 +418,12 @@ export class IssuanceService {
    * @param encodedCredential The encoded CWT credential in compact format (CSC:...)
    */
   async generateCredentialQRCode(encodedCredential: string): Promise<MATTRQRCodeResponse> {
+    this.logger.log('═══════════════════════════════════════════════════════════');
+    this.logger.log('🔵 MATTR API CALL: generateCredentialQRCode');
+    this.logger.log('═══════════════════════════════════════════════════════════');
+    this.logger.log(`Credential length: ${encodedCredential?.length || 0} chars`);
+    this.logger.log(`Credential preview: ${encodedCredential?.substring(0, 50)}...`);
+    
     try {
       this.logger.log(`Generating QR code for CWT credential`);
 
@@ -431,6 +466,9 @@ export class IssuanceService {
       };
 
       this.logger.log(`✅ QR code generated successfully`);
+      this.logger.log('═══════════════════════════════════════════════════════════');
+      this.logger.log('✅ MATTR API CALL COMPLETED: generateCredentialQRCode');
+      this.logger.log('═══════════════════════════════════════════════════════════');
       return qrCodeResponse;
     } catch (error) {
       this.logger.error(`❌ Error generating QR code: ${error.message}`);
@@ -458,6 +496,12 @@ export class IssuanceService {
    * @param payload The encoded CWT credential in compact format (CSC:...)
    */
   async verifyCredential(payload: string): Promise<MATTRVerifyResponse> {
+    this.logger.log('═══════════════════════════════════════════════════════════');
+    this.logger.log('🔵 MATTR API CALL: verifyCredential');
+    this.logger.log('═══════════════════════════════════════════════════════════');
+    this.logger.log(`Payload length: ${payload?.length || 0} chars`);
+    this.logger.log(`Payload preview: ${payload?.substring(0, 100)}...`);
+    
     try {
       this.logger.log(`Verifying CWT credential`);
 
@@ -508,6 +552,9 @@ export class IssuanceService {
       if (verifyResponse.decoded) {
         this.logger.log(`📋 Decoded credential data keys: ${Object.keys(verifyResponse.decoded).join(', ')}`);
       }
+      this.logger.log('═══════════════════════════════════════════════════════════');
+      this.logger.log('✅ MATTR API CALL COMPLETED: verifyCredential');
+      this.logger.log('═══════════════════════════════════════════════════════════');
       return verifyResponse;
     } catch (error) {
       this.logger.error(`❌ Error verifying credential: ${error.message}`);
@@ -521,6 +568,73 @@ export class IssuanceService {
         {
           statusCode: HttpStatus.BAD_GATEWAY,
           message: 'Failed to verify credential with MATTR platform',
+          error: error.response?.data || error.message,
+        },
+        HttpStatus.BAD_GATEWAY,
+      );
+    }
+  }
+
+  /**
+   * Revoke a compact credential using MATTR API
+   * Uses the MATTR /v2/credentials/compact/{id}/revocation-status endpoint
+   * See: https://learn.mattr.global/docs/api-reference/platform/cwt-credentials-issuance/revoke-compact-credential
+   * @param credentialId The MATTR credential ID to revoke
+   */
+  async revokeCredential(credentialId: string): Promise<void> {
+    this.logger.log('═══════════════════════════════════════════════════════════');
+    this.logger.log('🔵 MATTR API CALL: revokeCredential');
+    this.logger.log('═══════════════════════════════════════════════════════════');
+    this.logger.log(`Credential ID: ${credentialId}`);
+    
+    try {
+      this.logger.log(`Revoking compact credential: ${credentialId}`);
+
+      const fullUrl = `${this.apiUrl}/v2/credentials/compact/${credentialId}/revocation-status`;
+      this.logger.log('═══════════════════════════════════════════════════════════');
+      this.logger.log('📤 MATTR CREDENTIAL REVOCATION REQUEST');
+      this.logger.log('═══════════════════════════════════════════════════════════');
+      this.logger.log(`Full URL: ${fullUrl}`);
+      this.logger.log(`Method: POST`);
+      this.logger.log(`Credential ID: ${credentialId}`);
+
+      // MATTR revocation endpoint expects a POST request with revocation status
+      // The request body typically contains revocation status information
+      const requestPayload = {
+        isRevoked: true,
+      };
+
+      this.logger.log(`Request Body: ${JSON.stringify(requestPayload, null, 2)}`);
+      this.logger.log('═══════════════════════════════════════════════════════════');
+
+      // Make actual API call to MATTR
+      this.logger.log('🚀 Making HTTP request to MATTR Revocation API...');
+      const response = await this.httpClient.post(
+        `/v2/credentials/compact/${credentialId}/revocation-status`,
+        requestPayload,
+      );
+      this.logger.log('✅ HTTP request completed');
+
+      this.logger.log('📥 MATTR Revocation Response:');
+      this.logger.log(`   Status: ${response.status}`);
+      this.logger.log(`   Data: ${JSON.stringify(response.data, null, 2)}`);
+
+      this.logger.log(`✅ Credential revoked successfully: ${credentialId}`);
+      this.logger.log('═══════════════════════════════════════════════════════════');
+      this.logger.log('✅ MATTR API CALL COMPLETED: revokeCredential');
+      this.logger.log('═══════════════════════════════════════════════════════════');
+    } catch (error) {
+      this.logger.error(`❌ Error revoking credential: ${error.message}`);
+      if (error.response) {
+        this.logger.error(`   Status: ${error.response.status}`);
+        this.logger.error(`   Data: ${JSON.stringify(error.response.data, null, 2)}`);
+      }
+      this.logger.error(error.stack);
+
+      throw new HttpException(
+        {
+          statusCode: HttpStatus.BAD_GATEWAY,
+          message: 'Failed to revoke credential with MATTR platform',
           error: error.response?.data || error.message,
         },
         HttpStatus.BAD_GATEWAY,

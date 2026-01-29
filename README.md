@@ -299,3 +299,55 @@ For issues related to:
 - **MATTR Platform**: Consult MATTR Platform documentation
 - **NestJS**: Visit [nestjs.com](https://nestjs.com)
 - **Next.js**: Visit [nextjs.org](https://nextjs.org)
+
+
+
+# Steps to Start the applicaiton
+
+## 1. Start Redis (Docker)
+
+### Start Docker desktop
+From windows start menu
+
+```bash
+# From project root
+docker-compose up -d redis
+
+# Verify Redis is running
+docker ps
+```
+
+## 2. Start the Application
+
+
+### Start Backend
+**Git Bash Terminal - Backend:**
+```bash
+cd backend
+npm run start:dev
+```
+
+### Start Frontend
+**Git Bash Terminal - Frontend:**
+```bash
+cd frontend
+npm run dev
+```
+
+### Start Mobile App
+
+Both the mobile device and tthe application should be run on the same network
+Check IP address on compuater
+Update mobile applicaiton config file
+
+```bash
+cd c:\projects\stack_digital\stack-verifier\mattr-verifier
+npx expo start --dev-client
+```
+
+## On Mobile device
+Conect using 
+exp://192.168.1.59:8081
+
+
+curl -X POST http://192.168.1.59:3001/api/v1/verify -H "Content-Type: application/json"  -d '{"payload": "your-credential-payload-here"}'

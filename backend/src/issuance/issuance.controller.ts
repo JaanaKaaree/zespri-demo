@@ -9,7 +9,6 @@ import {
 } from '@nestjs/common';
 import { IssuanceService } from './issuance.service';
 import { CreateCredentialDto } from './dto/create-credential.dto';
-import { IssueCredentialDto } from './dto/issue-credential.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Public } from '../auth/decorators/public.decorator';
 
@@ -27,17 +26,6 @@ export class IssuanceController {
       `User ${req.user.email} creating credential with template ${createCredentialDto.templateId}`,
     );
     return this.issuanceService.createCredential(createCredentialDto);
-  }
-
-  @Post('issue')
-  async issueCredential(
-    @Body() issueCredentialDto: IssueCredentialDto,
-    @Request() req,
-  ) {
-    this.issuanceService['logger'].log(
-      `User ${req.user.email} issuing credential ${issueCredentialDto.credentialId}`,
-    );
-    return this.issuanceService.issueCredential(issueCredentialDto.credentialId);
   }
 
   @Get('status/:id')

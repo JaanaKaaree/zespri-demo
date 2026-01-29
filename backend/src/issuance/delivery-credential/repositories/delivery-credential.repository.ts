@@ -2,13 +2,13 @@ import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/commo
 import { ConfigService } from '@nestjs/config';
 import { Client } from 'pg';
 import {
-  CollectionCredential,
-  CollectionCredentialFilters,
-} from '../interfaces/collection-credential.interface';
+  DeliveryCredential,
+  DeliveryCredentialFilters,
+} from '../interfaces/delivery-credential.interface';
 
 @Injectable()
-export class CollectionCredentialRepository implements OnModuleInit, OnModuleDestroy {
-  private readonly logger = new Logger(CollectionCredentialRepository.name);
+export class DeliveryCredentialRepository implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(DeliveryCredentialRepository.name);
   private client: Client;
 
   constructor(private configService: ConfigService) {
@@ -37,35 +37,36 @@ export class CollectionCredentialRepository implements OnModuleInit, OnModuleDes
   }
 
   /**
-   * Create a new collection credential
+   * Create a new delivery credential
    */
-  async create(credential: CollectionCredential): Promise<CollectionCredential> {
+  async create(credential: DeliveryCredential): Promise<DeliveryCredential> {
     const query = `
-      INSERT INTO collection_credentials (
-        id, collection_id, bin_identifier, row_identifier,
-        harvest_start_datetime, harvest_end_datetime,
-        picker_id, picker_name, nzbn, orchard_id,
-        recipient_did, recipient_email, status,
+      INSERT INTO delivery_credentials (
+        id, delivery_id, origin_address, destination_address,
+        delivery_start_datetime, delivery_end_datetime,
+        driver_id, driver_name, vehicle_id, collection_id,
+        nzbn, recipient_did, recipient_email, status,
         credential_id, issuance_url, qr_code,
         created_at, updated_at
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-        $11, $12, $13, $14, $15, $16, $17, $18
+        $11, $12, $13, $14, $15, $16, $17, $18, $19
       )
       RETURNING *
     `;
 
     const values = [
       credential.id,
-      credential.collectionId,
-      credential.binIdentifier,
-      credential.rowIdentifier,
-      credential.harvestStartDatetime,
-      credential.harvestEndDatetime || null,
-      credential.pickerId,
-      credential.pickerName,
+      credential.deliveryId,
+      credential.originAddress,
+      credential.destinationAddress,
+      credential.deliveryStartDatetime,
+      credential.deliveryEndDatetime || null,
+      credential.driverId,
+      credential.driverName,
+      credential.vehicleId,
+      credential.collectionId || null,
       credential.nzbn,
-      credential.orchardId,
       credential.recipientDid || null,
       credential.recipientEmail || null,
       credential.status,
@@ -81,10 +82,10 @@ export class CollectionCredentialRepository implements OnModuleInit, OnModuleDes
   }
 
   /**
-   * Find a collection credential by ID
+   * Find a delivery credential by ID
    */
-  async findById(id: string): Promise<CollectionCredential | null> {
-    const query = 'SELECT * FROM collection_credentials WHERE id = $1';
+  async findById(id: string): Promise<DeliveryCredential | null> {
+    const query = 'SELECT * FROM delivery_credentials WHERE id = $1';
     const result = await this.client.query(query, [id]);
 
     if (result.rows.length === 0) {
@@ -95,11 +96,11 @@ export class CollectionCredentialRepository implements OnModuleInit, OnModuleDes
   }
 
   /**
-   * Find a collection credential by collection ID
+   * Find a delivery credential by delivery ID
    */
-  async findByCollectionId(collectionId: string): Promise<CollectionCredential | null> {
-    const query = 'SELECT * FROM collection_credentials WHERE collection_id = $1';
-    const result = await this.client.query(query, [collectionId]);
+  async findByDeliveryId(deliveryId: string): Promise<DeliveryCredential | null> {
+    const query = 'SELECT * FROM delivery_credentials WHERE delivery_id = $1';
+    const result = await this.client.query(query, [deliveryId]);
 
     if (result.rows.length === 0) {
       return null;
@@ -109,19 +110,19 @@ export class CollectionCredentialRepository implements OnModuleInit, OnModuleDes
   }
 
   /**
-   * Update a collection credential
+   * Update a delivery credential
    */
   async update(
     id: string,
-    updates: Partial<CollectionCredential>,
-  ): Promise<CollectionCredential> {
+    updates: Partial<DeliveryCredential>,
+  ): Promise<DeliveryCredential> {
     const updateFields: string[] = [];
     const values: any[] = [];
     let paramIndex = 1;
 
-    if (updates.harvestEndDatetime !== undefined) {
-      updateFields.push(`harvest_end_datetime = $${paramIndex++}`);
-      values.push(updates.harvestEndDatetime || null);
+    if (updates.deliveryEndDatetime !== undefined) {
+      updateFields.push(`delivery_end_datetime = $${paramIndex++}`);
+      values.push(updates.deliveryEndDatetime || null);
     }
     if (updates.recipientDid !== undefined) {
       updateFields.push(`recipient_did = $${paramIndex++}`);
@@ -156,7 +157,7 @@ export class CollectionCredentialRepository implements OnModuleInit, OnModuleDes
     values.push(id);
 
     const query = `
-      UPDATE collection_credentials
+      UPDATE delivery_credentials
       SET ${updateFields.join(', ')}
       WHERE id = $${paramIndex}
       RETURNING *
@@ -167,10 +168,10 @@ export class CollectionCredentialRepository implements OnModuleInit, OnModuleDes
   }
 
   /**
-   * Find collection credentials with filters
+   * Find delivery credentials with filters
    */
-  async findMany(filters?: CollectionCredentialFilters): Promise<CollectionCredential[]> {
-    let query = 'SELECT * FROM collection_credentials WHERE 1=1';
+  async findMany(filters?: DeliveryCredentialFilters): Promise<DeliveryCredential[]> {
+    let query = 'SELECT * FROM delivery_credentials WHERE 1=1';
     const values: any[] = [];
     let paramIndex = 1;
 
@@ -179,24 +180,28 @@ export class CollectionCredentialRepository implements OnModuleInit, OnModuleDes
         query += ` AND nzbn = $${paramIndex++}`;
         values.push(filters.nzbn);
       }
-      if (filters.orchardId) {
-        query += ` AND orchard_id = $${paramIndex++}`;
-        values.push(filters.orchardId);
+      if (filters.driverId) {
+        query += ` AND driver_id = $${paramIndex++}`;
+        values.push(filters.driverId);
       }
-      if (filters.pickerId) {
-        query += ` AND picker_id = $${paramIndex++}`;
-        values.push(filters.pickerId);
+      if (filters.vehicleId) {
+        query += ` AND vehicle_id = $${paramIndex++}`;
+        values.push(filters.vehicleId);
+      }
+      if (filters.collectionId) {
+        query += ` AND collection_id = $${paramIndex++}`;
+        values.push(filters.collectionId);
       }
       if (filters.status) {
         query += ` AND status = $${paramIndex++}`;
         values.push(filters.status);
       }
       if (filters.startDate) {
-        query += ` AND harvest_start_datetime >= $${paramIndex++}`;
+        query += ` AND delivery_start_datetime >= $${paramIndex++}`;
         values.push(filters.startDate);
       }
       if (filters.endDate) {
-        query += ` AND harvest_start_datetime <= $${paramIndex++}`;
+        query += ` AND delivery_start_datetime <= $${paramIndex++}`;
         values.push(filters.endDate);
       }
     }
@@ -208,9 +213,9 @@ export class CollectionCredentialRepository implements OnModuleInit, OnModuleDes
   }
 
   /**
-   * Map database row to CollectionCredential interface
+   * Map database row to DeliveryCredential interface
    */
-  private mapRowToCredential(row: any): CollectionCredential {
+  private mapRowToCredential(row: any): DeliveryCredential {
     // Handle qr_code - PostgreSQL JSONB can be object or string
     let qrCode: { qrcode: string; type?: string } | undefined;
     if (row.qr_code) {
@@ -223,15 +228,16 @@ export class CollectionCredentialRepository implements OnModuleInit, OnModuleDes
 
     return {
       id: row.id,
-      collectionId: row.collection_id,
-      binIdentifier: row.bin_identifier,
-      rowIdentifier: row.row_identifier,
-      harvestStartDatetime: row.harvest_start_datetime,
-      harvestEndDatetime: row.harvest_end_datetime || undefined,
-      pickerId: row.picker_id,
-      pickerName: row.picker_name,
+      deliveryId: row.delivery_id,
+      originAddress: row.origin_address,
+      destinationAddress: row.destination_address,
+      deliveryStartDatetime: row.delivery_start_datetime,
+      deliveryEndDatetime: row.delivery_end_datetime || undefined,
+      driverId: row.driver_id,
+      driverName: row.driver_name,
+      vehicleId: row.vehicle_id,
+      collectionId: row.collection_id || undefined,
       nzbn: row.nzbn,
-      orchardId: row.orchard_id,
       recipientDid: row.recipient_did || undefined,
       recipientEmail: row.recipient_email || undefined,
       status: row.status,
