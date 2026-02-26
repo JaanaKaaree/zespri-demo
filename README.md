@@ -334,19 +334,27 @@ cd frontend
 npm run dev
 ```
 
-### Start Mobile App
+### Tunnel Backend using ngrok
+```bash
+ngrok http --domain=settled-ample-hippo.ngrok-free.app 3001
+```
 
-Both the mobile device and tthe application should be run on the same network
-Check IP address on compuater
-Update mobile applicaiton config file
+### Start Stack Verification
+
+Both the mobile device and the application should be run on the same network
+Check IP address on computer
+Update mobile application config file
 
 ```bash
 cd c:\projects\stack_digital\stack-verifier\mattr-verifier
-npx expo start --dev-client
+npx expo start --dev-client --tunnel
+switch to S
 ```
 
 ## On Mobile device
-Conect using 
+First try to the QR code
+
+Connect using 
 exp://192.168.1.59:8081
 
 
